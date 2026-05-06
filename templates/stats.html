@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka Health Monitor — Statistiques</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<link rel="stylesheet" href="/static/css/config.css">
+<link rel="stylesheet" href="/static/css/stats.css">
+</head>
+<body>
+
+<header>
+  <h1>Kafka Health Monitor</h1>
+  <nav>
+    <a href="/"      class="nav-link">Dashboard</a>
+    <a href="/stats" class="nav-link active">Statistiques</a>
+    <a href="/config" class="nav-link">Configuration</a>
+  </nav>
+  <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">
+    Mode clair
+  </button>
+  <span id="last-update" style="font-size:.75rem;color:#64748b">—</span>
+</header>
+
+<main>
+  <div class="config-header">
+    <h2>Statistiques globales</h2>
+    <p>Vue agrégée sur tous les clusters — mise à jour toutes les 30 secondes.</p>
+  </div>
+
+  <!-- Résumé par cluster -->
+  <div class="config-section">
+    <h3>Résumé par cluster</h3>
+    <div id="cluster-summary"></div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="config-section">
+    <h3>Evolution du lag total — dernières 24h</h3>
+    <div style="position:relative;width:100%;height:280px">
+      <canvas id="timeline-chart" role="img"
+              aria-label="Evolution du lag par cluster sur 24h"></canvas>
+    </div>
+  </div>
+
+  <!-- Top topics + Top groups -->
+  <div class="stats-grid">
+    <div class="config-section">
+      <h3>Top 5 topics les plus problématiques</h3>
+      <div id="top-topics"></div>
+    </div>
+    <div class="config-section">
+      <h3>Top 5 consumer groups les plus lents</h3>
+      <div id="top-groups"></div>
+    </div>
+  </div>
+
+  <!-- Meta -->
+  <div class="config-section">
+    <h3>Informations sur la base de données</h3>
+    <div id="meta-info"></div>
+  </div>
+
+</main>
+
+<script src="/static/js/stats.js"></script>
+<script>
+function toggleTheme() {
+  const body = document.body;
+  const btn  = document.getElementById('theme-btn');
+  if (body.classList.contains('light')) {
+    body.classList.remove('light');
+    btn.textContent = 'Mode clair';
+    localStorage.setItem('khm-theme', 'dark');
+  } else {
+    body.classList.add('light');
+    btn.textContent = 'Mode sombre';
+    localStorage.setItem('khm-theme', 'light');
+  }
+}
+// Applique le thème sauvegardé
+const theme = localStorage.getItem('khm-theme');
+if (theme === 'light') {
+  document.body.classList.add('light');
+  document.getElementById('theme-btn').textContent = 'Mode sombre';
+}
+</script>
+</body>
+</html>

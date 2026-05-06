@@ -1,0 +1,188 @@
+"""
+Interface Web — FastAPI avec support multi-cluster.
+"""
+import threading
+import time
+import yaml
+
+from pathlib import Path
+
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+import uvicorn
+
+from core.lag_calculator import compute_all_lags
+from core.forecasting import forecast_all
+from core.db import init_db, save_lag, get_lag_history, get_latest_per_group, purge_old_records
+from core.config_loader import CONFIG
+from core.stats import get_global_stats
+from core.health_score import compute_health_score
+
+app = FastAPI(title="Kafka Health Monitor", version="2.0.0")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+_last_health_score = {}
+
+def _background_collector():
+    interval = CONFIG["monitor"]["refresh_interval"]
+    while True:
+        try:
+            results = compute_all_lags()
+            for r in results:
+                if r.total_lag >= 0:
+                    save_lag(r.cluster_name, r.group_id, r.topic, r.total_lag, r.status, r.group_state)
+            purge_old_records()
+            # Calcul du Health Score global
+            global _last_health_score
+            _last_health_score = compute_health_score(results)
+            print(f"[health] Score global : {_last_health_score['score']}/100 ({_last_health_score['grade']})")
+        except Exception as e:
+            print(f"[collector] Erreur : {e}")
+        time.sleep(interval)
+
+
+@app.get("/api/status")
+def api_status(request: Request):
+    cluster = request.query_params.get("cluster")
+    rows = get_latest_per_group(cluster_name=cluster)
+    clusters = [c["name"] for c in CONFIG["clusters"]]
+    return {
+        "data": rows,
+        "clusters": clusters,
+        "thresholds": {
+            "warning":  CONFIG["alerts"]["warning_threshold"],
+            "critical": CONFIG["alerts"]["critical_threshold"],
+        }
+    }
+
+
+@app.get("/api/history")
+def api_history(
+    cluster: str = Query(...),
+    group: str = Query(...),
+    topic: str = Query(...),
+    hours: int = Query(1),
+):
+    records = get_lag_history(cluster, group, topic, last_hours=hours)
+    return {"cluster": cluster, "group_id": group, "topic": topic, "hours": hours, "points": records}
+
+@app.get("/api/forecast")
+def api_forecast():
+    """
+    Retourne les prédictions de lag pour tous les groupes/topics.
+    Basé sur une régression linéaire sur l'historique SQLite.
+    """
+    results = forecast_all()
+    return {"forecasts": results}
+
+@app.get("/api/config")
+def get_config():
+    """Retourne la configuration actuelle."""
+    return {
+        "clusters":    CONFIG.get("clusters", []),
+        "alerts":      CONFIG.get("alerts", {}),
+        "monitor":     CONFIG.get("monitor", {}),
+        "exclude_topics": CONFIG.get("exclude_topics", []),
+        "exclude_groups": CONFIG.get("exclude_groups", []),
+    }
+
+
+@app.post("/api/config")
+async def save_config(request: Request):
+    """
+    Sauvegarde la configuration dans config.yml
+    et recharge CONFIG en mémoire immédiatement.
+    """
+    try:
+        body = await request.json()
+
+        config_path = Path("config.yml")
+        if config_path.exists():
+            with open(config_path, "r") as f:
+                current = yaml.safe_load(f) or {}
+        else:
+            current = {}
+
+        # Met à jour uniquement les sections modifiables
+        current["alerts"]  = body.get("alerts",  current.get("alerts", {}))
+        current["monitor"] = body.get("monitor", current.get("monitor", {}))
+        current["exclude_topics"] = body.get("exclude_topics", [])
+        current["exclude_groups"] = body.get("exclude_groups", [])
+
+        with open(config_path, "w") as f:
+            yaml.dump(current, f, default_flow_style=False, allow_unicode=True)
+
+        # Recharge CONFIG en mémoire sans redémarrer
+        CONFIG["alerts"]  = current["alerts"]
+        CONFIG["monitor"] = current["monitor"]
+        CONFIG["exclude_topics"] = current["exclude_topics"]
+        CONFIG["exclude_groups"] = current["exclude_groups"]
+
+        print(f"[config] Configuration mise a jour : {body}")
+        return {"success": True}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/stats")
+def api_stats():
+    """Retourne les statistiques globales agrégées."""
+    return get_global_stats()
+
+@app.get("/api/health-score")
+def api_health_score():
+    """
+    Retourne le Health Score global (0-100).
+    Calculé à chaque cycle de collecte — pas de recalcul à la demande.
+    """
+    return _last_health_score if _last_health_score else {"score": None, "grade": "Chargement..."}
+
+
+@app.get("/stats", response_class=HTMLResponse)
+def stats_page(request: Request):
+    """Page de statistiques globales."""
+    return templates.TemplateResponse("stats.html", {"request": request})
+
+
+@app.get("/config", response_class=HTMLResponse)
+def config_page(request: Request):
+    """Page de configuration."""
+    return templates.TemplateResponse("config.html", {"request": request})
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def metrics():
+    rows = get_latest_per_group()
+    lines = []
+    lines.append("# HELP kafka_consumer_lag Nombre de messages en attente")
+    lines.append("# TYPE kafka_consumer_lag gauge")
+    for row in rows:
+        if row["total_lag"] >= 0:
+            label = f'cluster="{row["cluster_name"]}",group="{row["group_id"]}",topic="{row["topic"]}"'
+            lines.append(f"kafka_consumer_lag{{{label}}} {row['total_lag']}")
+    lines.append("# HELP kafka_consumer_status Statut (0=OK 1=WARNING 2=CRITICAL)")
+    lines.append("# TYPE kafka_consumer_status gauge")
+    status_map = {"OK": 0, "WARNING": 1, "CRITICAL": 2, "ERROR": -1}
+    for row in rows:
+        label = f'cluster="{row["cluster_name"]}",group="{row["group_id"]}",topic="{row["topic"]}"'
+        lines.append(f"kafka_consumer_status{{{label}}} {status_map.get(row['status'], -1)}")
+    return "\n".join(lines)
+
+
+@app.get("/", response_class=HTMLResponse)
+def dashboard(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
+
+@app.on_event("startup")
+def startup():
+    init_db()
+    t = threading.Thread(target=_background_collector, daemon=True)
+    t.start()
+
+
+def run_web():
+    host = CONFIG["web"]["host"]
+    port = CONFIG["web"]["port"]
+    print(f"Dashboard disponible sur http://localhost:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="warning")

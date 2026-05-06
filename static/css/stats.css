@@ -1,0 +1,140 @@
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* Cluster summary cards */
+.cluster-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.cluster-stat-card {
+  background: #12141f;
+  border-radius: 10px;
+  padding: 16px;
+  border-left: 3px solid #7dd3fc;
+}
+
+.cluster-stat-card.has-critical { border-left-color: #f87171; }
+.cluster-stat-card.has-warning  { border-left-color: #facc15; }
+.cluster-stat-card.all-ok       { border-left-color: #22c55e; }
+
+.cluster-stat-name {
+  font-size: .9rem;
+  font-weight: 600;
+  color: #7dd3fc;
+  margin-bottom: 12px;
+}
+
+.cluster-stat-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-metric {
+  text-align: center;
+}
+
+.stat-metric .val {
+  font-size: 1.2rem;
+  font-weight: 700;
+  display: block;
+}
+
+.stat-metric .lbl {
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: #64748b;
+}
+
+.val.crit  { color: #f87171; }
+.val.warn  { color: #facc15; }
+.val.ok    { color: #22c55e; }
+.val.total { color: #7dd3fc; }
+
+/* Top lists */
+.top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #1e2235;
+  font-size: .82rem;
+}
+
+.top-row:last-child { border-bottom: none; }
+
+.top-rank {
+  font-size: .75rem;
+  font-weight: 700;
+  color: #475569;
+  min-width: 20px;
+  text-align: center;
+}
+
+.top-name {
+  flex: 1;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.top-sub {
+  font-size: .75rem;
+  color: #64748b;
+}
+
+.top-lag {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #facc15;
+  min-width: 80px;
+  text-align: right;
+}
+
+/* Bar chart inline */
+.lag-bar-wrap {
+  width: 80px;
+  background: #1e2235;
+  border-radius: 4px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.lag-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #378ADD, #7dd3fc);
+}
+
+/* Meta */
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.meta-item {
+  background: #12141f;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.meta-item .lbl {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.meta-item .val {
+  font-size: .9rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}

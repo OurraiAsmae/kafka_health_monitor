@@ -1,0 +1,277 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  background: #0f1117;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+header {
+  background: #1a1d27;
+  border-bottom: 1px solid #2d3148;
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #7dd3fc;
+  letter-spacing: .5px;
+}
+
+#last-update {
+  font-size: .75rem;
+  color: #64748b;
+}
+
+#refresh-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  margin-right: 6px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .4; }
+}
+
+/* ── Main ── */
+main {
+  padding: 24px 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: .8rem;
+  font-weight: 600;
+  border: 1px solid #2d3148;
+  background: #1a1d27;
+  color: #64748b;
+  transition: all .2s;
+}
+
+.tab.active {
+  background: #7dd3fc;
+  color: #0f1117;
+  border-color: #7dd3fc;
+}
+
+.tab:hover:not(.active) {
+  border-color: #7dd3fc;
+  color: #7dd3fc;
+}
+
+/* ── Cards ── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: #1a1d27;
+  border: 1px solid #2d3148;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.card .label {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.card .value     { font-size: 1.8rem; font-weight: 700; }
+.card.ok .value  { color: #22c55e; }
+.card.warn .value{ color: #facc15; }
+.card.crit .value{ color: #f87171; }
+.card.total .value { color: #7dd3fc; }
+
+/* ── Table ── */
+.table-wrap {
+  background: #1a1d27;
+  border: 1px solid #2d3148;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+}
+
+th {
+  background: #12141f;
+  padding: 12px 16px;
+  text-align: left;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #64748b;
+}
+
+td {
+  padding: 12px 16px;
+  border-top: 1px solid #1e2235;
+}
+
+tr:hover td {
+  background: #1e2235;
+  cursor: pointer;
+}
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.badge.ok   { background: #14532d33; color: #22c55e; }
+.badge.warn { background: #71380033; color: #facc15; }
+.badge.crit { background: #7f1d1d33; color: #f87171; }
+.badge.err  { background: #1e1e1e;   color: #64748b; }
+
+.cluster-pill {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: .7rem;
+  font-weight: 600;
+  background: #2d3148;
+  color: #7dd3fc;
+}
+
+/* ── Chart section ── */
+.chart-section {
+  background: #1a1d27;
+  border: 1px solid #2d3148;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.chart-section h2 {
+  font-size: .85rem;
+  color: #94a3b8;
+  margin-bottom: 16px;
+}
+
+.placeholder-text {
+  color: #475569;
+  font-size: .85rem;
+  padding: 40px 0;
+  text-align: center;
+}
+
+/* ── Forecast ── */
+.forecast-header {
+  display: flex;
+  gap: 16px;
+  padding: 10px 16px;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #64748b;
+  background: #12141f;
+  border-radius: 8px 8px 0 0;
+}
+
+.forecast-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid #1e2235;
+  font-size: .82rem;
+  flex-wrap: wrap;
+}
+
+.trend-up   { color: #f87171; font-weight: 600; }
+.trend-down { color: #22c55e; font-weight: 600; }
+.trend-stab { color: #94a3b8; }
+
+.conf-high { color: #22c55e; }
+.conf-med  { color: #facc15; }
+.conf-low  { color: #94a3b8; }
+
+.eta-badge { padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 600; }
+.eta-crit  { background: #7f1d1d33; color: #f87171; }
+.eta-warn  { background: #71380033; color: #facc15; }
+.eta-ok    { background: #14532d33; color: #22c55e; }
+
+/* ── Forecast legend ── */
+.forecast-legend {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  font-size: .75rem;
+  color: #94a3b8;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-line {
+  width: 24px;
+  height: 2px;
+  display: inline-block;
+}
+
+nav { display: flex; gap: 8px; }
+.nav-link {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: .8rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: #64748b;
+  border: 1px solid #2d3148;
+  transition: all .2s;
+}
+.nav-link:hover  { color: #7dd3fc; border-color: #7dd3fc; }
+.nav-link.active { background: #7dd3fc; color: #0f1117; border-color: #7dd3fc; }

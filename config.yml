@@ -1,0 +1,21 @@
+alerts:
+  critical_threshold: 9999
+  warning_threshold: 1000
+clusters:
+- bootstrap_servers: kafka:29092
+  color: teal
+  name: dev
+- bootstrap_servers: kafka:29092
+  color: yellow
+  name: staging
+- bootstrap_servers: kafka:29092
+  color: red
+  name: production
+exclude_groups: []
+exclude_topics: []
+monitor:
+  history_retention_days: 7
+  refresh_interval: 5
+web:
+  host: 0.0.0.0
+  port: 8080

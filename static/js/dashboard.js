@@ -1,0 +1,359 @@
+let chart = null;
+let forecastChart = null;
+let activeCluster = null;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const badge = (status) => {
+  const map = {
+    OK:       ['ok',   '● OK'],
+    WARNING:  ['warn', '▲ WARNING'],
+    CRITICAL: ['crit', '✖ CRITICAL'],
+    ERROR:    ['err',  '? ERROR'],
+  };
+  const [cls, label] = map[status] || ['err', status];
+  return `<span class="badge ${cls}">${label}</span>`;
+};
+const stateBadge = (state) => {
+  const map = {
+    'Stable':              ['#14532d33', '#22c55e', 'Stable'],
+    'Empty':               ['#71380033', '#facc15', 'Empty'],
+    'Dead':                ['#7f1d1d33', '#f87171', 'Dead'],
+    'PreparingRebalance':  ['#1e3a5f33', '#7dd3fc', 'Rebalancing'],
+    'CompletingRebalance': ['#1e3a5f33', '#7dd3fc', 'Completing'],
+  };
+  const [bg, color, label] = map[state] || ['#1e1e1e', '#64748b', state || 'Unknown'];
+  return `<span style="padding:2px 8px;border-radius:10px;font-size:.72rem;
+          font-weight:600;background:${bg};color:${color}">${label}</span>`;
+};
+
+const fmt = (n) => n >= 0 ? Number(n).toLocaleString('fr-FR') : 'N/A';
+
+const trendIcon = (t) =>
+  t === 'INCREASING' ? '<span class="trend-up">↑ croissant</span>'
+  : t === 'DECREASING' ? '<span class="trend-down">↓ décroissant</span>'
+  : '<span class="trend-stab">→ stable</span>';
+
+const confBadge = (c, r2) => {
+  const cls = c === 'HIGH' ? 'conf-high' : c === 'MEDIUM' ? 'conf-med' : 'conf-low';
+  return `<span class="${cls}">R²=${r2} (${c})</span>`;
+};
+
+const etaBadge = (etaMin, label) => {
+  if (etaMin === -1) return `<span class="eta-badge eta-crit">Déjà ${label}</span>`;
+  if (etaMin === -2) return `<span class="eta-badge eta-ok">Jamais atteint</span>`;
+  if (etaMin < 10)  return `<span class="eta-badge eta-crit">${label} ~${etaMin} min</span>`;
+  if (etaMin < 30)  return `<span class="eta-badge eta-warn">${label} ~${etaMin} min</span>`;
+  return `<span class="eta-badge eta-ok">${label} ~${etaMin} min</span>`;
+};
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+
+function renderTabs(clusters) {
+  const container = document.getElementById('tabs');
+  const all = ['all', ...clusters];
+  container.innerHTML = all.map(c => `
+    <div class="tab ${c === (activeCluster || 'all') ? 'active' : ''}"
+         onclick="selectCluster('${c}')">
+      ${c === 'all' ? 'Tous les clusters' : c}
+    </div>
+  `).join('');
+}
+
+function selectCluster(name) {
+  activeCluster = name === 'all' ? null : name;
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active',
+      t.textContent.trim() === (name === 'all' ? 'Tous les clusters' : name)
+    );
+  });
+  refresh();
+}
+
+// ── Status refresh ────────────────────────────────────────────────────────────
+
+async function refresh() {
+  const url = activeCluster
+    ? `/api/status?cluster=${activeCluster}`
+    : '/api/status';
+  const res  = await fetch(url);
+  const json = await res.json();
+  const rows = json.data || [];
+
+  renderTabs(json.clusters || []);
+
+  document.getElementById('c-total').textContent = rows.length;
+  document.getElementById('c-ok').textContent    = rows.filter(r => r.status === 'OK').length;
+  document.getElementById('c-warn').textContent  = rows.filter(r => r.status === 'WARNING').length;
+  document.getElementById('c-crit').textContent  = rows.filter(r => r.status === 'CRITICAL').length;
+
+    document.getElementById('tbody').innerHTML = rows.map(r => `
+        <tr onclick="loadChart('${r.cluster_name}','${r.group_id}','${r.topic}')">
+        <td><span class="cluster-pill">${r.cluster_name}</span></td>
+        <td><strong>${r.group_id}</strong></td>
+        <td>${r.topic}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(r.total_lag)}</td>
+        <td>${badge(r.status)}</td>
+        <td>${stateBadge(r.group_state || 'Unknown')}</td>
+        <td style="color:#475569;font-size:.75rem">
+            ${r.recorded_at?.slice(0,19).replace('T',' ') || '—'}
+        </td>
+        </tr>
+    `).join('');
+
+  document.getElementById('last-update').innerHTML =
+    '<span id="refresh-dot"></span>Mis à jour : '
+    + new Date().toLocaleTimeString('fr-FR');
+}
+
+// ── Historique chart ──────────────────────────────────────────────────────────
+
+async function loadChart(cluster, group, topic) {
+  document.getElementById('chart-title').textContent =
+    `${cluster} — ${group} / ${topic}`;
+  document.getElementById('chart-placeholder').style.display = 'none';
+
+  const canvas = document.getElementById('lag-chart');
+  canvas.style.display = 'block';
+
+  const res  = await fetch(
+    `/api/history?cluster=${encodeURIComponent(cluster)}`
+    + `&group=${encodeURIComponent(group)}`
+    + `&topic=${encodeURIComponent(topic)}&hours=2`
+  );
+  const json = await res.json();
+  const pts  = json.points || [];
+
+  if (chart) chart.destroy();
+  chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: pts.map(p => p.recorded_at.slice(11, 19)),
+      datasets: [{
+        label: 'Lag total',
+        data: pts.map(p => p.total_lag),
+        borderColor: '#7dd3fc',
+        backgroundColor: '#7dd3fc22',
+        fill: true, tension: 0.3, pointRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        x: { ticks: { color: '#475569' }, grid: { color: '#1e2235' } },
+        y: { ticks: { color: '#475569' }, grid: { color: '#1e2235' }, beginAtZero: true },
+      }
+    }
+  });
+}
+
+// ── Forecast table ────────────────────────────────────────────────────────────
+
+async function refreshForecast() {
+  const res       = await fetch('/api/forecast');
+  const json      = await res.json();
+  const forecasts = json.forecasts || [];
+  const container = document.getElementById('forecast-table');
+
+  if (!forecasts.length) {
+    container.innerHTML = '<div class="placeholder-text">Aucune prédiction disponible</div>';
+    return;
+  }
+
+  const rows = forecasts.map(f => {
+    if (!f.enough_data) {
+      return `<div class="forecast-row">
+        <span class="cluster-pill">${f.cluster_name || '—'}</span>
+        <span style="color:#64748b">${f.group_id || '—'} / ${f.topic || '—'}</span>
+        <span style="color:#475569;font-size:.75rem">Données insuffisantes</span>
+      </div>`;
+    }
+    // ← onclick ajouté ici pour ouvrir le graphe prédictif
+    return `<div class="forecast-row" style="cursor:pointer"
+      onclick="loadForecastChart('${f.cluster_name}','${f.group_id}','${f.topic}',${f.slope_per_min},${f.current_lag})">
+      <span class="cluster-pill">${f.cluster_name}</span>
+      <span style="min-width:160px"><strong>${f.group_id}</strong> / ${f.topic}</span>
+      <span style="min-width:80px">lag: <strong>${fmt(f.current_lag)}</strong></span>
+      <span style="min-width:120px">
+        ${trendIcon(f.trend)}
+        (${f.slope_per_min > 0 ? '+' : ''}${f.slope_per_min}/min)
+      </span>
+      <span>${etaBadge(f.eta_warning_min, 'WARNING')}</span>
+      <span>${etaBadge(f.eta_critical_min, 'CRITICAL')}</span>
+      <span style="color:#475569">→ 5min: ${fmt(f.predicted_lag_5min)}</span>
+      <span style="color:#475569">→ 15min: ${fmt(f.predicted_lag_15min)}</span>
+      <span>${confBadge(f.confidence, f.r_squared)}</span>
+    </div>`;
+  });
+
+  container.innerHTML = `
+    <div class="forecast-header">
+      <span style="min-width:60px">Cluster</span>
+      <span style="min-width:160px">Groupe / Topic</span>
+      <span style="min-width:80px">Lag actuel</span>
+      <span style="min-width:120px">Tendance</span>
+      <span>ETA Warning</span>
+      <span>ETA Critical</span>
+      <span>+5 min</span>
+      <span>+15 min</span>
+      <span>Confiance</span>
+    </div>
+    ${rows.join('')}
+  `;
+}
+
+async function refreshHealthScore() {
+  const res  = await fetch('/api/health-score');
+  const json = await res.json();
+
+  if (!json || json.score === null) return;
+
+  const score = json.score;
+  const color = json.color || '#22c55e';
+
+  // Valeur et grade
+  document.getElementById('score-value').textContent = score;
+  document.getElementById('score-value').style.color = color;
+  document.getElementById('score-grade').textContent = json.grade || '—';
+  document.getElementById('score-grade').style.color = color;
+
+  // Detail
+  const d = json.details || {};
+  document.getElementById('score-detail').textContent =
+    `${json.n_critical} critical  •  ${json.n_warning} warning  •  ${json.n_ok} ok`;
+
+  // Anneau SVG (circonférence = 2π×30 ≈ 188.5)
+  const circumference = 188.5;
+  const offset = circumference - (score / 100) * circumference;
+  const ring = document.getElementById('score-ring');
+  if (ring) {
+    ring.style.stroke = color;
+    ring.style.strokeDashoffset = offset;
+    ring.style.transition = 'stroke-dashoffset 0.8s ease, stroke 0.3s';
+  }
+
+  // Scores par cluster
+  const clusterDiv = document.getElementById('cluster-scores');
+  if (clusterDiv && json.by_cluster) {
+    clusterDiv.innerHTML = json.by_cluster.map(c => `
+      <div style="text-align:center;min-width:80px">
+        <div style="font-size:1.4rem;font-weight:700;color:${_clusterScoreColor(c.score)}">${c.score}</div>
+        <div style="font-size:.7rem;color:#64748b;text-transform:uppercase;
+                    letter-spacing:.5px">${c.cluster_name}</div>
+        <div style="font-size:.7rem;color:#475569">${c.n_critical}C ${c.n_warning}W ${c.n_ok}OK</div>
+      </div>
+    `).join('<div style="width:1px;background:#2d3148"></div>');
+  }
+}
+
+function _clusterScoreColor(score) {
+  if (score >= 90) return '#22c55e';
+  if (score >= 70) return '#4ade80';
+  if (score >= 50) return '#facc15';
+  if (score >= 30) return '#fb923c';
+  return '#f87171';
+}
+
+// ── Forecast chart ────────────────────────────────────────────────────────────
+
+async function loadForecastChart(cluster, group, topic, slopePerMin, currentLag) {
+  document.getElementById('forecast-chart-section').style.display = 'block';
+  document.getElementById('forecast-chart-title').textContent =
+    `Prédiction — ${cluster} / ${group} / ${topic}`;
+  document.getElementById('forecast-chart-placeholder').style.display = 'none';
+
+  const res  = await fetch(
+    `/api/history?cluster=${encodeURIComponent(cluster)}`
+    + `&group=${encodeURIComponent(group)}`
+    + `&topic=${encodeURIComponent(topic)}&hours=1`
+  );
+  const json = await res.json();
+  const pts  = json.points || [];
+  if (!pts.length) return;
+
+  const WARNING  = 1000;
+  const CRITICAL = 10000;
+
+  const obsLabels   = pts.map(p => p.recorded_at.slice(11, 19));
+  const obsData     = pts.map(p => p.total_lag);
+  const slopePerSec = slopePerMin / 60;
+  const lastLag     = obsData[obsData.length - 1];
+  const predLabels  = [];
+  const predData    = [];
+
+  for (let i = 1; i <= 18; i++) {
+    const seconds = i * 50;
+    predLabels.push(`+${Math.round(seconds / 60)}min`);
+    predData.push(Math.round(lastLag + slopePerSec * seconds));
+  }
+
+  const allLabels = [...obsLabels, ...predLabels];
+  const allObs    = [...obsData,   ...Array(predLabels.length).fill(null)];
+  const allPred   = [...Array(obsLabels.length - 1).fill(null), lastLag, ...predData];
+  const maxY      = Math.max(...predData, CRITICAL) * 1.05;
+
+  if (forecastChart) forecastChart.destroy();
+  forecastChart = new Chart(document.getElementById('forecast-canvas'), {
+    type: 'line',
+    data: {
+      labels: allLabels,
+      datasets: [
+        {
+          label: 'Lag observé',
+          data: allObs,
+          borderColor: '#378ADD',
+          backgroundColor: '#378ADD22',
+          fill: true, tension: 0.3, pointRadius: 2, spanGaps: false,
+        },
+        {
+          label: 'Prédiction',
+          data: allPred,
+          borderColor: '#EF9F27',
+          borderDash: [6, 3],
+          backgroundColor: '#EF9F2711',
+          fill: true, tension: 0.2, pointRadius: 2, spanGaps: false,
+        },
+        {
+          label: 'WARNING',
+          data: allLabels.map(() => WARNING),
+          borderColor: '#BA7517',
+          borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false,
+        },
+        {
+          label: 'CRITICAL',
+          data: allLabels.map(() => CRITICAL),
+          borderColor: '#E24B4A',
+          borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: '#64748b', maxTicksLimit: 10, font: { size: 11 } },
+          grid:  { color: '#1e223530' }
+        },
+        y: {
+          min: 0,
+          max: Math.round(maxY),
+          ticks: { color: '#64748b', font: { size: 11 } },
+          grid:  { color: '#1e223530' }
+        }
+      },
+      animation: { duration: 400 }
+    }
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+refresh();
+refreshForecast();
+refreshHealthScore();
+setInterval(refresh,           REFRESH_INTERVAL);
+setInterval(refreshForecast,   FORECAST_INTERVAL);
+setInterval(refreshHealthScore, 10000);
