@@ -19,20 +19,45 @@ from core.db import init_db, save_lag, get_lag_history, get_latest_per_group, pu
 from core.config_loader import CONFIG
 from core.stats import get_global_stats
 from core.health_score import compute_health_score
+from core.recommender import get_recommendations
+from core import audit
 
 app = FastAPI(title="Kafka Health Monitor", version="2.0.0")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 _last_health_score = {}
+_last_statuses = {} # Track status per group to log transitions
 
 def _background_collector():
     interval = CONFIG["monitor"]["refresh_interval"]
+    global _last_statuses
     while True:
         try:
             results = compute_all_lags()
             for r in results:
                 if r.total_lag >= 0:
                     save_lag(r.cluster_name, r.group_id, r.topic, r.total_lag, r.status, r.group_state)
+                    
+                    # Audit Trail for alerts
+                    key = f"{r.cluster_name}:{r.group_id}:{r.topic}"
+                    old_status = _last_statuses.get(key)
+                    if r.status != old_status:
+                        if r.status in ["WARNING", "CRITICAL"]:
+                            audit.log_event(
+                                event_type="ALERT",
+                                severity=r.status,
+                                message=f"Alerte déclenchée sur {key} : {r.status}",
+                                details={"lag": r.total_lag, "state": r.group_state}
+                            )
+                        elif old_status in ["WARNING", "CRITICAL"] and r.status == "OK":
+                            audit.log_event(
+                                event_type="ALERT",
+                                severity="INFO",
+                                message=f"Alerte résolue sur {key} (Retour à OK).",
+                                details={"lag": r.total_lag}
+                            )
+                        _last_statuses[key] = r.status
+
             purge_old_records()
             # Calcul du Health Score global
             global _last_health_score
@@ -77,6 +102,21 @@ def api_forecast():
     results = forecast_all()
     return {"forecasts": results}
 
+@app.get("/api/recommendations")
+def api_recommendations():
+    """
+    Retourne des recommandations intelligentes basées sur la tendance et l'état.
+    """
+    recs = get_recommendations()
+    if recs:
+        audit.log_event(
+            event_type="RECOMMENDATION",
+            severity="INFO",
+            message=f"Analyse effectuée : {len(recs)} recommandation(s) générée(s).",
+            details={"count": len(recs)}
+        )
+    return {"recommendations": recs}
+
 @app.get("/api/config")
 def get_config():
     """Retourne la configuration actuelle."""
@@ -120,6 +160,13 @@ async def save_config(request: Request):
         CONFIG["exclude_topics"] = current["exclude_topics"]
         CONFIG["exclude_groups"] = current["exclude_groups"]
 
+        audit.log_event(
+            event_type="CONFIG_CHANGE",
+            severity="INFO",
+            message="Configuration mise à jour via l'interface web.",
+            details=body
+        )
+
         print(f"[config] Configuration mise a jour : {body}")
         return {"success": True}
 
@@ -150,6 +197,16 @@ def stats_page(request: Request):
 def config_page(request: Request):
     """Page de configuration."""
     return templates.TemplateResponse("config.html", {"request": request})
+
+@app.get("/audit", response_class=HTMLResponse)
+def audit_page(request: Request):
+    """Page de piste d'audit."""
+    return templates.TemplateResponse("audit.html", {"request": request})
+
+@app.get("/api/audit")
+def api_audit(limit: int = 100):
+    """API pour récupérer les logs d'audit."""
+    return audit.fetch_logs(limit)
 
 @app.get("/metrics", response_class=PlainTextResponse)
 def metrics():

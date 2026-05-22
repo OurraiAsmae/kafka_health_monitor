@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/static/css/dashboard.css">
 <link rel="stylesheet" href="/static/css/config.css">
 <link rel="stylesheet" href="/static/css/stats.css">
+<script src="/static/js/theme.js"></script>
 </head>
 <body>
 
@@ -17,11 +18,13 @@
     <a href="/"      class="nav-link">Dashboard</a>
     <a href="/stats" class="nav-link active">Statistiques</a>
     <a href="/config" class="nav-link">Configuration</a>
+    <a href="/audit" class="nav-link">Audit Trail</a>
   </nav>
-  <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">
-    Mode clair
-  </button>
-  <span id="last-update" style="font-size:.75rem;color:#64748b">—</span>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">
+    </button>
+    <span id="last-update" style="font-size:.75rem;color:var(--text-muted)">—</span>
+  </div>
 </header>
 
 <main>
@@ -66,26 +69,5 @@
 </main>
 
 <script src="/static/js/stats.js"></script>
-<script>
-function toggleTheme() {
-  const body = document.body;
-  const btn  = document.getElementById('theme-btn');
-  if (body.classList.contains('light')) {
-    body.classList.remove('light');
-    btn.textContent = 'Mode clair';
-    localStorage.setItem('khm-theme', 'dark');
-  } else {
-    body.classList.add('light');
-    btn.textContent = 'Mode sombre';
-    localStorage.setItem('khm-theme', 'light');
-  }
-}
-// Applique le thème sauvegardé
-const theme = localStorage.getItem('khm-theme');
-if (theme === 'light') {
-  document.body.classList.add('light');
-  document.getElementById('theme-btn').textContent = 'Mode sombre';
-}
-</script>
 </body>
 </html>

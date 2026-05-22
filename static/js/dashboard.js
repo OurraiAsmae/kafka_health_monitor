@@ -1,6 +1,7 @@
 let chart = null;
 let forecastChart = null;
 let activeCluster = null;
+let THRESHOLDS = { warning: 1000, critical: 10000 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,15 +17,14 @@ const badge = (status) => {
 };
 const stateBadge = (state) => {
   const map = {
-    'Stable':              ['#14532d33', '#22c55e', 'Stable'],
-    'Empty':               ['#71380033', '#facc15', 'Empty'],
-    'Dead':                ['#7f1d1d33', '#f87171', 'Dead'],
-    'PreparingRebalance':  ['#1e3a5f33', '#7dd3fc', 'Rebalancing'],
-    'CompletingRebalance': ['#1e3a5f33', '#7dd3fc', 'Completing'],
+    'Stable':              ['state-stable', 'Stable'],
+    'Empty':               ['state-empty',  'Empty'],
+    'Dead':                ['state-dead',   'Dead'],
+    'PreparingRebalance':  ['state-rebal',  'Rebalancing'],
+    'CompletingRebalance': ['state-rebal',  'Completing'],
   };
-  const [bg, color, label] = map[state] || ['#1e1e1e', '#64748b', state || 'Unknown'];
-  return `<span style="padding:2px 8px;border-radius:10px;font-size:.72rem;
-          font-weight:600;background:${bg};color:${color}">${label}</span>`;
+  const [cls, label] = map[state] || ['state-unknown', state || 'Unknown'];
+  return `<span class="state-badge ${cls}">${label}</span>`;
 };
 
 const fmt = (n) => n >= 0 ? Number(n).toLocaleString('fr-FR') : 'N/A';
@@ -79,6 +79,11 @@ async function refresh() {
   const res  = await fetch(url);
   const json = await res.json();
   const rows = json.data || [];
+
+  if (json.thresholds) {
+    THRESHOLDS.warning = json.thresholds.warning;
+    THRESHOLDS.critical = json.thresholds.critical;
+  }
 
   renderTabs(json.clusters || []);
 
@@ -169,7 +174,6 @@ async function refreshForecast() {
         <span style="color:#475569;font-size:.75rem">Données insuffisantes</span>
       </div>`;
     }
-    // ← onclick ajouté ici pour ouvrir le graphe prédictif
     return `<div class="forecast-row" style="cursor:pointer"
       onclick="loadForecastChart('${f.cluster_name}','${f.group_id}','${f.topic}',${f.slope_per_min},${f.current_lag})">
       <span class="cluster-pill">${f.cluster_name}</span>
@@ -212,18 +216,15 @@ async function refreshHealthScore() {
   const score = json.score;
   const color = json.color || '#22c55e';
 
-  // Valeur et grade
   document.getElementById('score-value').textContent = score;
   document.getElementById('score-value').style.color = color;
   document.getElementById('score-grade').textContent = json.grade || '—';
   document.getElementById('score-grade').style.color = color;
 
-  // Detail
   const d = json.details || {};
   document.getElementById('score-detail').textContent =
     `${json.n_critical} critical  •  ${json.n_warning} warning  •  ${json.n_ok} ok`;
 
-  // Anneau SVG (circonférence = 2π×30 ≈ 188.5)
   const circumference = 188.5;
   const offset = circumference - (score / 100) * circumference;
   const ring = document.getElementById('score-ring');
@@ -233,7 +234,6 @@ async function refreshHealthScore() {
     ring.style.transition = 'stroke-dashoffset 0.8s ease, stroke 0.3s';
   }
 
-  // Scores par cluster
   const clusterDiv = document.getElementById('cluster-scores');
   if (clusterDiv && json.by_cluster) {
     clusterDiv.innerHTML = json.by_cluster.map(c => `
@@ -272,8 +272,8 @@ async function loadForecastChart(cluster, group, topic, slopePerMin, currentLag)
   const pts  = json.points || [];
   if (!pts.length) return;
 
-  const WARNING  = 1000;
-  const CRITICAL = 10000;
+  const WARNING  = THRESHOLDS.warning;
+  const CRITICAL = THRESHOLDS.critical;
 
   const obsLabels   = pts.map(p => p.recorded_at.slice(11, 19));
   const obsData     = pts.map(p => p.total_lag);
@@ -349,11 +349,60 @@ async function loadForecastChart(cluster, group, topic, slopePerMin, currentLag)
   });
 }
 
+async function refreshRecommendations() {
+  const container = document.getElementById('recommendations-container');
+  const btn = document.querySelector('button[onclick="refreshRecommendations()"]');
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    btn.style.opacity = '0.7';
+  }
+
+  try {
+    const res  = await fetch('/api/recommendations');
+    const json = await res.json();
+    const recs = json.recommendations || [];
+
+    if (!recs.length) {
+      container.innerHTML = '<div class="placeholder-text">Clusters are healthy. No urgent recommendations.</div>';
+      return;
+    }
+
+    container.innerHTML = recs.map(r => `
+      <div class="suggestion-card severity-${r.severity.toLowerCase()}">
+        <div class="suggestion-header">
+          <div class="suggestion-title">${r.title}</div>
+          <div class="suggestion-tag">${r.type}</div>
+        </div>
+        <div class="suggestion-body">
+          ${r.advice}
+        </div>
+        <div class="suggestion-action">
+          <strong>Action:</strong> ${r.action}
+        </div>
+        <div style="margin-top:10px; font-size:0.65rem; color:#475569">
+          ${r.cluster} / ${r.group_id} / ${r.topic}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    container.innerHTML = '<div class="placeholder-text" style="color:#f87171">Error analyzing cluster state.</div>';
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Analyze Now';
+      btn.style.opacity = '1';
+    }
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 refresh();
 refreshForecast();
 refreshHealthScore();
+refreshRecommendations();
 setInterval(refresh,           REFRESH_INTERVAL);
 setInterval(refreshForecast,   FORECAST_INTERVAL);
 setInterval(refreshHealthScore, 10000);

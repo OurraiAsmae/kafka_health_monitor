@@ -78,8 +78,8 @@ function renderTimeline(points) {
   const datasets = Object.entries(clusterMap).map(([name, vals]) => ({
     label:           name,
     data:            labels.map(b => vals[b] ?? null),
-    borderColor:     CLUSTER_COLORS[name] || '#7dd3fc',
-    backgroundColor: (CLUSTER_COLORS[name] || '#7dd3fc') + '22',
+    borderColor:     CLUSTER_COLORS[name] || 'var(--primary)',
+    backgroundColor: (CLUSTER_COLORS[name] || 'var(--primary)') + '22',
     fill:            true,
     tension:         0.3,
     pointRadius:     1,
@@ -95,16 +95,16 @@ function renderTimeline(points) {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: '#94a3b8', boxWidth: 12 } }
+          legend: { labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#94a3b8', boxWidth: 12 } }
         },
         scales: {
           x: {
-            ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } },
-            grid:  { color: '#1e223530' }
+            ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b', maxTicksLimit: 12, font: { size: 10 } },
+            grid:  { color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() + '30' || '#1e223530' }
           },
           y: {
-            ticks: { color: '#64748b', font: { size: 10 } },
-            grid:  { color: '#1e223530' },
+            ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b', font: { size: 10 } },
+            grid:  { color: getComputedStyle(document.documentElement).getPropertyValue('--border').trim() + '30' || '#1e223530' },
             beginAtZero: true,
           }
         }
@@ -142,7 +142,7 @@ function renderTopGroups(groups) {
         <div class="top-sub">
           <span style="color:#7dd3fc">${g.cluster_name}</span>
           — ${g.nb_topics} topic(s)
-          — <span style="color:${statusColor[g.worst_status] || '#64748b'}">${g.worst_status}</span>
+          — <span class="badge ${g.worst_status.toLowerCase()}">${g.worst_status}</span>
         </div>
         <div class="lag-bar-wrap" style="margin-top:4px">
           <div class="lag-bar" style="width:${Math.round(g.total_lag / maxLag * 100)}%"></div>

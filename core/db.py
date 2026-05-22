@@ -30,6 +30,17 @@ def init_db():
                 recorded_at  TEXT    NOT NULL
             )
         """)
+        # Table pour la piste d'audit
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type  TEXT    NOT NULL,
+                severity    TEXT    NOT NULL,
+                message     TEXT    NOT NULL,
+                details     TEXT,
+                recorded_at TEXT    NOT NULL
+            )
+        """)
         # Migration pour les bases existantes
         try:
             conn.execute("ALTER TABLE lag_history ADD COLUMN group_state TEXT NOT NULL DEFAULT 'Unknown'")
@@ -93,3 +104,21 @@ def purge_old_records():
         ).rowcount
         conn.commit()
     return deleted
+
+def save_audit_log(event_type: str, severity: str, message: str, details: str = None):
+    now = datetime.utcnow().isoformat()
+    with _get_connection() as conn:
+        conn.execute(
+            """INSERT INTO audit_logs (event_type, severity, message, details, recorded_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (event_type, severity, message, details, now)
+        )
+        conn.commit()
+
+def get_audit_logs(limit: int = 100) -> list[dict]:
+    with _get_connection() as conn:
+        rows = conn.execute(
+            """SELECT * FROM audit_logs ORDER BY recorded_at DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+    return [dict(row) for row in rows]
