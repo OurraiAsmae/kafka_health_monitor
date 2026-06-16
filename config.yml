@@ -19,3 +19,9 @@ monitor:
 web:
   host: 0.0.0.0
   port: 8080
+business:
+  revenue_per_message: 0.05   # valeur par défaut (€)
+
+  topics:
+    logs: 0.01
+    orders: 0.1

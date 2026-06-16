@@ -1,227 +1,102 @@
-# Kafka Health Monitor (KHM)
- 
-A lightweight, dual-interface monitoring tool for Apache Kafka topics and consumer groups. Built for Big Data students, educators, and practitioners operating small-to-medium Kafka deployments.
- 
+# Kafka Health Monitor (KHM) 2.0
+
+A professional, enterprise-ready monitoring tool for Apache Kafka. KHM provides deep visibility into consumer group health, predictive lag forecasting, and a complete system audit trail.
+
 ---
- 
-## Features
- 
+
+## 🌟 Key Features
+
 | Feature | CLI | Web |
 |---|:---:|:---:|
-| Real-time lag monitoring | ✅ | ✅ |
-| OK / WARNING / CRITICAL alerts | ✅ | ✅ |
-| Consumer Group State (STABLE/EMPTY/DEAD/REBALANCING) | ✅ | ✅ |
-| Per-cluster filtering | ✅ | ✅ |
-| Lag history (SQLite) | ✅ | ✅ |
-| Predictive Lag Forecasting (linear regression) | — | ✅ |
-| Interactive forecast chart | — | ✅ |
-| Health Score global (0–100) | — | ✅ |
-| Statistics page | — | ✅ |
-| Configuration page | — | ✅ |
-| Prometheus `/metrics` export | — | ✅ |
-| Multi-cluster support | ✅ | ✅ |
- 
+| **Real-time Lag Monitoring** | ✅ | ✅ |
+| **Audit Trail (Governance)** | — | ✅ |
+| **Proactive Recommendations** | — | ✅ |
+| **Midnight Blue Design (Dark/Light)** | — | ✅ |
+| **Predictive Forecasting (AI-based)** | — | ✅ |
+| **Global Health Score (A-E)** | — | ✅ |
+| **Export Data (CSV/JSON)** | — | ✅ |
+| **Multi-cluster Support** | ✅ | ✅ |
+| **Prometheus /metrics Export** | — | ✅ |
+
 ---
- 
-## Quick Start
- 
-### One command (recommended)
- 
+
+## 🚀 Quick Start
+
+### One command (Docker)
 ```bash
 docker-compose up -d
 ```
- 
-This starts Kafka, Zookeeper, a demo producer, two consumers, and the dashboard — everything included.
- 
-Open your browser at **http://localhost:8080**
- 
-### Local (Kafka already running)
- 
+Open **http://localhost:8080** to access the dashboard.
+
+### Local Development
 ```bash
-python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-python main.py --mode web       # Web dashboard
-python main.py --mode cli status  # CLI snapshot
+python main.py --mode web
 ```
- 
+
 ---
- 
-## CLI Commands
- 
-```bash
-# Instant snapshot
-python main.py --mode cli status
- 
-# Filter by cluster
-python main.py --mode cli status --cluster production
- 
-# Live watch (auto-refresh every 5s)
-python main.py --mode cli watch
-python main.py --mode cli watch --cluster dev --interval 10
- 
-# Lag history
-python main.py --mode cli history --cluster production --group slow-consumer-group --topic orders --hours 2
-```
- 
+
+## 🛠 Advanced Modules
+
+### 1. System Audit Trail (Enterprise Governance)
+KHM 2.0 includes a persistent record-keeping system that logs:
+- **Configuration Changes**: Track who changed thresholds and when.
+- **Alert Triggers**: Historical record of every WARNING/CRITICAL transition.
+- **System Events**: Service starts, data purges, and critical errors.
+*All logs are exportable in CSV and JSON for compliance reporting.*
+
+### 2. Proactive Recommendations
+Beyond just monitoring, KHM analyzes trends to provide actionable advice:
+- "Partition count is too low for current lag."
+- "Consumer group shows signs of 'Stuck' state."
+- "Growth rate suggests a critical breach in 22 minutes."
+
+### 3. Design System
+The interface uses a curated **Midnight Blue & Amber Yellow** theme, optimized for:
+- Low eye strain during long monitoring sessions.
+- High-contrast visual hierarchy for critical alerts.
+- Full responsive support for mobile/tablet NOC views.
+
 ---
- 
-## Web Endpoints
- 
-| Endpoint | Description |
-|---|---|
-| `GET /` | Main dashboard |
-| `GET /stats` | Global statistics |
-| `GET /config` | Configuration page |
-| `GET /api/status` | Current lag (JSON) |
-| `GET /api/history?cluster=&group=&topic=&hours=` | Lag history (JSON) |
-| `GET /api/forecast` | Predictive forecasting (JSON) |
-| `GET /api/health-score` | Health Score 0–100 (JSON) |
-| `GET /api/stats` | Aggregated statistics (JSON) |
-| `GET /metrics` | Prometheus format |
- 
----
- 
-## Configuration
- 
-Edit `config.yml` to customize clusters, alert thresholds, and collection parameters:
- 
-```yaml
-clusters:
-  - name: "dev"
-    bootstrap_servers: "localhost:9092"
-  - name: "production"
-    bootstrap_servers: "prod.host:9092"
- 
-alerts:
-  warning_threshold:  1000    # lag > 1000  → WARNING
-  critical_threshold: 10000   # lag > 10000 → CRITICAL
- 
-monitor:
-  refresh_interval: 5         # seconds between collections
-  history_retention_days: 7   # SQLite retention
- 
-exclude_topics: []
-exclude_groups: []
+
+## 📂 Project Structure
+
 ```
- 
----
- 
-## How Lag is Calculated
- 
-```
-lag(partition) = log_end_offset − committed_offset
-```
- 
-- **log_end_offset** — last message produced in the partition (high watermark)
-- **committed_offset** — last message acknowledged by the consumer group
-- **lag** — number of messages pending processing
-Total lag for a consumer group on a topic = sum of per-partition lags.
- 
----
- 
-## Predictive Lag Forecasting
- 
-KHM uses linear regression (`numpy.polyfit`) on the SQLite history to predict:
-- Trend: INCREASING / DECREASING / STABLE
-- ETA to WARNING threshold
-- ETA to CRITICAL threshold
-- Predicted lag at +5min and +15min
-- Confidence score R² (HIGH / MEDIUM / LOW)
----
- 
-## Health Score (0–100)
- 
-A single score summarizing the global health of all monitored clusters:
- 
-| Score | Grade |
-|---|---|
-| 90–100 | Excellent |
-| 70–89 | Good |
-| 50–69 | Average |
-| 30–49 | Poor |
-| 0–29 | Critical |
- 
-**Formula:**
-```
-score = 100 - penalty_critical(0–60) - penalty_warning(0–25) - penalty_state(0–15)
-```
- 
----
- 
-## Project Structure
- 
-```
-kafka-health-monitor/
+kafka-health_monitor/
 ├── core/
-│   ├── kafka_client.py      # Kafka connection, offset reading
-│   ├── lag_calculator.py    # Lag formula, status classification
+│   ├── audit.py             # Event logging & persistence
+│   ├── recommender.py       # Smart analysis engine
 │   ├── forecasting.py       # Linear regression predictions
-│   ├── health_score.py      # Health Score 0–100
-│   ├── stats.py             # Global statistics aggregation
-│   ├── db.py                # SQLite persistence
-│   └── config_loader.py     # config.yml loading
+│   ├── health_score.py      # Multi-factor health scoring
+│   ├── db.py                # SQLite management (History & Audit)
+│   └── kafka_client.py      # High-performance offset reader
 ├── interfaces/
-│   ├── cli.py               # Terminal UI (Rich + Click)
-│   └── web.py               # Web API (FastAPI + Uvicorn)
+│   ├── web.py               # FastAPI server & background worker
+│   └── cli.py               # Terminal UI (Rich)
 ├── static/
-│   ├── css/                 # Stylesheets
-│   └── js/                  # JavaScript
-├── templates/
-│   ├── dashboard.html       # Main dashboard
-│   ├── stats.html           # Statistics page
-│   └── config.html          # Configuration page
-├── tests/
-│   ├── test_lag_calculator.py
-│   ├── test_forecasting.py
-│   ├── test_db.py
-│   └── test_config_loader.py
-├── demo_producer.py         # Demo message producer
-├── demo_consumer_slow.py    # Slow consumer (lag accumulates)
-├── demo_consumer_normal.py  # Normal consumer (keeps up)
-├── main.py                  # Entry point
-├── config.yml               # Configuration
-├── Dockerfile
-├── docker-compose.yml
-└── pytest.ini
+│   ├── css/                 # Professional Theme variables
+│   └── js/                  # Real-time charts & exports
+└── templates/
+    ├── audit.html           # Timeline activity feed
+    ├── dashboard.html       # Metrics & health overview
+    └── config.html          # Interactive settings
 ```
- 
+
 ---
- 
-## Running Tests
- 
-```bash
-# Install test dependencies
-pip install pytest pytest-cov
- 
-# Run all tests
-pytest -v
- 
-# With coverage report
-pytest --cov=core --cov-report=term-missing
-```
- 
-**Test results:** 28/28 passing — 100% coverage on `config_loader` and `db`, 69% on `forecasting`.
- 
----
- 
-## Comparison with Existing Tools
- 
-| Feature | KHM | Kafdrop | Burrow | kafka-ui |
+
+## 📊 Comparison with Industry Tools
+
+| Feature | KHM 2.0 | Kafdrop | Burrow | kafka-ui |
 |---|:---:|:---:|:---:|:---:|
-| Language | Python | Java | Go | Java |
-| CLI interface | ✅ | — | — | — |
-| Web dashboard | ✅ | ✅ | — | ✅ |
-| Lag history (DB) | ✅ SQLite | — | — | — |
-| Predictive forecasting | ✅ | — | — | — |
-| Health Score | ✅ | — | — | — |
-| Prometheus export | ✅ | — | ✅ | ✅ |
-| Configurable alerts | ✅ YAML | — | — | Partial |
-| Multi-cluster | ✅ | Partial | — | ✅ |
-| Educational focus | ✅ | — | — | — |
-| Docker one-command | ✅ | Medium | Hard | Medium |
- 
+| **Language** | Python | Java | Go | Java |
+| **Audit Trail** | ✅ | — | — | — |
+| **Recommendations** | ✅ | — | — | — |
+| **Predictive Analysis**| ✅ | — | — | — |
+| **Health Score** | ✅ | — | — | — |
+| **CLI & Web** | ✅ | Web only| CLI only| Web only|
+| **Export (CSV/JSON)** | ✅ | — | — | — |
+
 ---
- 
-## License
- 
-MIT
+
+## 📝 License
+Distributed under the MIT License.

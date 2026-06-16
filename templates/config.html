@@ -6,6 +6,7 @@
 <title>Kafka Health Monitor — Configuration</title>
 <link rel="stylesheet" href="/static/css/dashboard.css">
 <link rel="stylesheet" href="/static/css/config.css">
+<script src="/static/js/theme.js"></script>
 </head>
 <body>
 
@@ -15,8 +16,13 @@
     <a href="/"      class="nav-link">Dashboard</a>
     <a href="/stats" class="nav-link">Statistiques</a>
     <a href="/config" class="nav-link active">Configuration</a>
+    <a href="/audit" class="nav-link">Audit Trail</a>
   </nav>
-  <span id="last-update" style="font-size:.75rem;color:#64748b">—</span>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">
+    </button>
+    <span id="last-update" style="font-size:.75rem;color:var(--text-muted)">—</span>
+  </div>
 </header>
 
 <main>

@@ -6,6 +6,7 @@
 <title>Kafka Health Monitor</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="/static/css/dashboard.css">
+<script src="/static/js/theme.js"></script>
 </head>
 <body>
 
@@ -15,42 +16,43 @@
     <a href="/"      class="nav-link active">Dashboard</a>
     <a href="/stats" class="nav-link">Statistiques</a>
     <a href="/config" class="nav-link">Configuration</a>
+    <a href="/audit" class="nav-link">Audit Trail</a>
   </nav>
-  <span id="last-update" style="font-size:.75rem;color:#64748b">—</span>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">
+    </button>
+    <span id="last-update" style="font-size:.75rem;color:var(--text-muted)">—</span>
+  </div>
 </header>
 
 <main>
   <div class="tabs" id="tabs"></div>
   
   <!-- Health Score Banner -->
-    <div id="health-banner" style="display:flex;align-items:center;justify-content:space-between;
-        background:#1a1d27;border:1px solid #2d3148;border-radius:12px;
-        padding:16px 24px;margin-bottom:20px;flex-wrap:wrap;gap:12px">
-      <div style="display:flex;align-items:center;gap:20px">
+    <div id="health-banner" class="health-banner">
+      <div class="health-main">
         <!-- Score circulaire -->
-        <div style="position:relative;width:72px;height:72px">
+        <div class="score-container">
           <svg width="72" height="72" viewBox="0 0 72 72">
-            <circle cx="36" cy="36" r="30" fill="none" stroke="#1e2235" stroke-width="7"/>
+            <circle cx="36" cy="36" r="30" fill="none" class="score-ring-bg" stroke-width="7"/>
             <circle id="score-ring" cx="36" cy="36" r="30" fill="none"
-                    stroke="#22c55e" stroke-width="7"
+                    stroke-width="7"
                     stroke-dasharray="188.5" stroke-dashoffset="188.5"
                     stroke-linecap="round"
                     transform="rotate(-90 36 36)"/>
           </svg>
-          <div style="position:absolute;inset:0;display:flex;align-items:center;
-                      justify-content:center;flex-direction:column">
-            <span id="score-value" style="font-size:1.1rem;font-weight:700;color:#e2e8f0">—</span>
+          <div class="score-text">
+            <span id="score-value">—</span>
           </div>
         </div>
-        <div>
-          <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:1px;
-                      color:#64748b;margin-bottom:2px">Health Score global</div>
-          <div id="score-grade" style="font-size:1.3rem;font-weight:700;color:#22c55e">—</div>
-          <div id="score-detail" style="font-size:.75rem;color:#64748b;margin-top:2px">—</div>
+        <div class="score-info">
+          <div class="score-label">Health Score global</div>
+          <div id="score-grade">—</div>
+          <div id="score-detail">—</div>
         </div>
       </div>
       <!-- Scores par cluster -->
-      <div id="cluster-scores" style="display:flex;gap:16px;flex-wrap:wrap"></div>
+      <div id="cluster-scores" class="cluster-scores"></div>
     </div>
 
   <div class="cards">
@@ -75,6 +77,21 @@
       </thead>
       <tbody id="tbody"></tbody>
     </table>
+  </div>
+
+  <div class="proactive-panel">
+    <h2 class="proactive-header">
+      <div class="proactive-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="proactive-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        Proactive Suggestions & Advisory
+      </div>
+      <button onclick="refreshRecommendations()" class="analyze-btn">
+        Analyze Now
+      </button>
+    </h2>
+    <div id="recommendations-container" class="suggestions-grid">
+      <div class="placeholder-text">Analyzing cluster state for recommendations...</div>
+    </div>
   </div>
 
   <!-- Predictive Lag Forecasting -->

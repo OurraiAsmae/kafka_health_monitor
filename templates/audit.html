@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka Health Monitor — Audit Trail</title>
+<link rel="stylesheet" href="/static/css/dashboard.css">
+<script src="/static/js/theme.js"></script>
+<style>
+  .audit-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 30px;
+  }
+  
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+  }
+  
+  .stat-card .label { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 1px; }
+  .stat-card .value { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+
+  .audit-actions { display: flex; gap: 10px; }
+  
+  .btn-export {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  
+  .btn-export:hover { background: var(--surface-hover); border-color: var(--primary); }
+
+  /* Feed Style */
+  .audit-item {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+    align-items: flex-start;
+  }
+  
+  .audit-item:hover { background: var(--surface-hover); }
+  
+  .event-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .icon-config { background: #1e3a8a33; color: #7dd3fc; }
+  .icon-alert  { background: #7f1d1d33; color: #f87171; }
+  .icon-reco   { background: #14532d33; color: #4ade80; }
+  
+  .event-content { flex: 1; }
+  .event-meta { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .event-type-label { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .event-date { font-size: 0.75rem; color: var(--text-muted); }
+  .event-msg { font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+  
+  .details-json {
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: #0f1117;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    max-height: 100px;
+    overflow-y: auto;
+  }
+  
+  html.light .icon-config { background: #eff6ff; color: #1e3a8a; }
+  html.light .icon-alert  { background: #fef2f2; color: #dc2626; }
+  html.light .icon-reco   { background: #f0fdf4; color: #16a34a; }
+  html.light .details-json { background: #f8fafc; color: #475569; }
+
+  .filter-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Kafka Health Monitor</h1>
+  <nav>
+    <a href="/"      class="nav-link">Dashboard</a>
+    <a href="/stats" class="nav-link">Statistiques</a>
+    <a href="/config" class="nav-link">Configuration</a>
+    <a href="/audit" class="nav-link active">Audit Trail</a>
+  </nav>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()">
+    </button>
+    <span id="last-update" style="font-size:.75rem;color:var(--text-muted)">—</span>
+  </div>
+</header>
+
+<main>
+  <div class="config-header" style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 24px;">
+    <div>
+      <h2>Audit Trail</h2>
+      <p>Historique intelligent des événements système.</p>
+    </div>
+    <div class="audit-actions">
+      <button class="btn-export" onclick="exportAudit('csv')">Export CSV</button>
+      <button class="btn-export" onclick="exportAudit('json')">JSON</button>
+    </div>
+  </div>
+
+  <div class="audit-summary">
+    <div class="stat-card">
+      <div class="label">Alertes (24h)</div>
+      <div class="value" id="stat-alerts">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Changements Config</div>
+      <div class="value" id="stat-config">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Conseils Générés</div>
+      <div class="value" id="stat-reco">0</div>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="padding: 0;">
+    <div id="audit-feed">
+      <div class="placeholder-text" style="padding: 40px;">Chargement du flux d'audit...</div>
+    </div>
+  </div>
+</main>
+
+<script>
+let currentLogs = [];
+
+async function loadAuditLogs() {
+  try {
+    const res = await fetch('/api/audit');
+    currentLogs = await res.json();
+    
+    const feed = document.getElementById('audit-feed');
+    if (!currentLogs || currentLogs.length === 0) {
+      feed.innerHTML = '<div class="placeholder-text" style="padding: 40px;">Aucun événement enregistré.</div>';
+      return;
+    }
+
+    // Update Stats
+    document.getElementById('stat-alerts').textContent = currentLogs.filter(l => l.event_type === 'ALERT').length;
+    document.getElementById('stat-config').textContent = currentLogs.filter(l => l.event_type === 'CONFIG_CHANGE').length;
+    document.getElementById('stat-reco').textContent   = currentLogs.filter(l => l.event_type === 'RECOMMENDATION').length;
+
+    const iconMap = {
+      'CONFIG_CHANGE': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+      'ALERT': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+      'RECOMMENDATION': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`
+    };
+    const classMap = { 'CONFIG_CHANGE': 'icon-config', 'ALERT': 'icon-alert', 'RECOMMENDATION': 'icon-reco' };
+
+    feed.innerHTML = currentLogs.map(l => {
+      const date = l.recorded_at.replace('T', ' ').slice(0, 19);
+      const icon = iconMap[l.event_type] || iconMap['ALERT'];
+      const iconClass = classMap[l.event_type] || 'icon-alert';
+      const details = l.details ? `<div class="details-json">${l.details}</div>` : '';
+      const sevClass = l.severity.toLowerCase();
+
+      return `
+        <div class="audit-item">
+          <div class="event-icon-wrap ${iconClass}">
+            ${icon}
+          </div>
+          <div class="event-content">
+            <div class="event-meta">
+              <span class="event-type-label" style="color:var(--primary)">${l.event_type}</span>
+              <span class="event-date">${date}</span>
+            </div>
+            <div class="event-msg">
+              <span class="badge ${sevClass}" style="margin-right:8px">${l.severity}</span>
+              ${l.message}
+            </div>
+            ${details}
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    document.getElementById('last-update').textContent = 'Mis à jour : ' + new Date().toLocaleTimeString('fr-FR');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function exportAudit(format) {
+  if (currentLogs.length === 0) return;
+  
+  if (format === 'json') {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentLogs, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href",     dataStr);
+    downloadAnchorNode.setAttribute("download", "audit_trail.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  } else {
+    const headers = ['Date', 'Type', 'Severity', 'Message', 'Details'];
+    const rows = currentLogs.map(l => [
+      l.recorded_at, 
+      l.event_type, 
+      l.severity, 
+      l.message, 
+      l.details ? l.details.replace(/"/g, '""') : ''
+    ]);
+    
+    const csvContent = [headers, ...rows].map(e => e.map(cell => `"${cell}"`).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "audit_trail.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+
+loadAuditLogs();
+setInterval(loadAuditLogs, 30000);
+</script>
+</body>
+</html>
