@@ -330,7 +330,7 @@ MIT License — free to use, modify, and distribute.
 ## Authors
 
 - **Asmae Ourrai** — [GitHub](https://github.com/OurraiAsmae)
-- **Safae El Ouajidi** — [GitHub](https://github.com/elouajidisafae)
+- **Safae El Ouajidi**
 - **Marwa M'haya**
 
 ### Supervisor
