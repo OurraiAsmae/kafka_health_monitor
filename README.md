@@ -1,4 +1,4 @@
-# Kafka Health Monitor (KHM) 2.0
+# Kafka Health Monitor (KHM)
 
 > **From passive monitoring to active operational intelligence.**
 
