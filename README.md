@@ -326,11 +326,15 @@ MIT License — free to use, modify, and distribute.
 
 ---
 
+
 ## Authors
 
 - **Asmae Ourrai** — [GitHub](https://github.com/OurraiAsmae)
 - **Safae El Ouajidi** — [GitHub](https://github.com/elouajidisafae)
-- **Mohamed Hanine**
 - **Marwa M'haya**
+
+### Supervisor
+
+- **Mohamed Hanine** — TRI
 
 *National School of Applied Sciences — Chouaib Doukkali University, El Jadida, Morocco*
